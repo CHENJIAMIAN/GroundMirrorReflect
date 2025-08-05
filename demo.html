@@ -61,43 +61,48 @@
                     'color': mirrorConfig.color
                 })
 
-                this.mirrorConfig = mirrorConfig // Store config
-
+                this.mirrorConfig = mirrorConfig
                 this.geometry.setDrawRange(0, 0)
-
                 this.scene = scene
 
                 this.textureWhite = textureWhite || MMS_textureWhite
                 this.textureWhiteNode = new Nodes.TextureNode(this.textureWhite)
-
                 this.textureNormal = textureNormal || MMS_textureNormal
                 this.textureNormalNode = new Nodes.TextureNode(this.textureNormal)
 
-                // var zero = new Nodes.FloatNode(0)
-
+                // 1. ReflectorNode 提供了基础的反射纹理和它的投影坐标 (projCoord)
                 const reflectorNode = new Nodes.ReflectorNode(this)
-                const normalMapSwitchNode = new Nodes.SwitchNode(this.textureNormalNode, 'xy')
-                const invertedNormalMapNode = new Nodes.MathNode(normalMapSwitchNode, Nodes.MathNode.INVERT)
-                const offsetCalculationNode = new Nodes.OperatorNode(invertedNormalMapNode, new Nodes.FloatNode(0.5), Nodes.OperatorNode.SUB)
 
+                // 2. 计算屏幕空间的 UV 坐标
+                // reflectorNode.uv 是 vec4 类型的 projCoord
+                // 我们需要执行 (projCoord.xy / projCoord.w) 来得到正确的屏幕UV
+                const screenSpaceUV = new Nodes.ExpressionNode("projCoord.xy / projCoord.w", "vec2")
+                screenSpaceUV.keywords.projCoord = reflectorNode.uv
+
+                // 3. 计算来自法线贴图的 UV 偏移量 (offset)
+                const normalMapUV = new Nodes.SwitchNode(this.textureNormalNode, 'xy')
+                const centeredNormal = new Nodes.OperatorNode(normalMapUV, new Nodes.FloatNode(0.5), Nodes.OperatorNode.SUB)
                 this.offsetMultiplierNode = new Nodes.FloatNode(mirrorConfig.offset)
-                reflectorNode.offset = new Nodes.OperatorNode(offsetCalculationNode, this.offsetMultiplierNode, Nodes.OperatorNode.MUL)
+                const offset = new Nodes.OperatorNode(centeredNormal, this.offsetMultiplierNode, Nodes.OperatorNode.MUL)
 
+                // 4. 将屏幕空间 UV 和 偏移量相加，得到最终被扰动的 UV
+                const distortedUV = new Nodes.OperatorNode(screenSpaceUV, offset, Nodes.OperatorNode.ADD)
+
+                // 5. 设置 BlurNode
+                // BlurNode 的第一个参数是要被模糊处理的'源'，也就是 reflectorNode 本身
                 this.blurNode = new Nodes.BlurNode(reflectorNode)
                 this.blurNode.size = new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio)
-                this.blurNode.uv = new Nodes.ExpressionNode("projCoord.xyz / projCoord.q", 'vec3')
-                this.blurNode.uv.keywords.projCoord = new Nodes.OperatorNode(reflectorNode.offset, reflectorNode.uv, Nodes.OperatorNode.ADD)
-                // this.blurNode.uv.keywords.projCoord = reflectorNode.uv
                 this.blurNode.radius.x = this.blurNode.radius.y = mirrorConfig.blur
 
+                // 关键：将我们手动计算好的、被扰动过的 UV (distortedUV) 赋值给 blurNode.uv
+                // 这样 BlurNode 在执行模糊采样时，就会使用我们提供的、带有水波效果的UV坐标
+                this.blurNode.uv = distortedUV
+
+                // 后续的材质设置不变
                 this.phongNodeMaterial = new Nodes.PhongNodeMaterial()
                 this.phongNodeMaterial.environment = this.blurNode
-                // this.phongNodeMaterial.environment = reflectorNode
-                // this.phongNodeMaterial.environment = new Nodes.ColorNode(invertedNormalMapNode);
-
                 const environmentAlphaNode = new Nodes.SwitchNode(this.textureWhiteNode, 'w')
                 this.phongNodeMaterial.environmentAlpha = environmentAlphaNode
-
                 this.phongNodeMaterial.normal = new Nodes.NormalMapNode(this.textureNormalNode)
 
                 const mirrorMesh = new THREE.Mesh(
