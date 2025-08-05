@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Ground Mirror Demo</title>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <input type="file" id="whiteTextureInput" accept="image/*">
+    <label for="whiteTextureInput">上传白膜纹理</label>
+    <input type="file" id="normalTextureInput" accept="image/*">
+    <label for="normalTextureInput">上传法线纹理</label>
+
+    <script type="importmap">
+			{
+				"imports": {
+					"three": "https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.module.js",
+					"three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.134.0/examples/jsm/",
+					"lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.esm.js"
+				}
+			}
+		</script>
+    <script type="module">
+        import * as THREE from 'three'
+        import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+        import * as Nodes from 'three/examples/jsm/nodes/Nodes.js'
+        import { GUI } from 'lil-gui'
+
+        window.THREE = THREE
+        window.Reflector = Reflector
+        let textureWhite, textureNormal
+
+
+        class ReflectorRTT extends Reflector {
+            constructor(geometry, options) {
+                super(geometry, options)
+                this.geometry.setDrawRange(0, 0)
+            }
+        }
+        var MMS_imgWhite = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAsTAAALEwEAmpwYAAAFwmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDIgNzkuMTYwOTI0LCAyMDE3LzA3LzEzLTAxOjA2OjM5ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyMi0xMS0xMVQyMDo1MTo0OCswODowMCIgeG1wOk1ldGFkYXRhRGF0ZT0iMjAyMi0xMS0xMVQyMDo1MTo0OCswODowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjItMTEtMTFUMjA6NTE6NDgrMDg6MDAiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6ZWMyMDViMTAtNTRlOS1iNDQ3LWE4ZmEtODk4NzVkNTc0ZTg0IiB4bXBNTTpEb2N1bWVudElEPSJhZG9iZTpkb2NpZDpwaG90b3Nob3A6MmE0YWQ1ZjEtNTAxNC1mNzQ3LWFmZjgtZWNjNDVhMDRlOGU1IiB4bXBNTTpPcmlnaW5hbERvY3VtZW50SUQ9InhtcC5kaWQ6YWFkMDEwYTAtZjIyOS00NDQxLTkxN2MtN2M1ZDI0MGJlMzVmIiBkYzpmb3JtYXQ9ImltYWdlL3BuZyIgcGhvdG9zaG9wOkNvbG9yTW9kZT0iMyI+IDx4bXBNTTpIaXN0b3J5PiA8cmRmOlNlcT4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNyZWF0ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6YWFkMDEwYTAtZjIyOS00NDQxLTkxN2MtN2M1ZDI0MGJlMzVmIiBzdEV2dDp3aGVuPSIyMDIyLTExLTExVDIwOjUxOjQ4KzA4OjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIi8+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJzYXZlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDplYzIwNWIxMC01NGU5LWI0NDctYThmYS04OTg3NWQ1NzRlODQiIHN0RXZ0OndoZW49IjIwMjItMTEtMTFUMjA6NTE6NDgrMDg6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+BCvITQAAABZJREFUCJlj/P//PwMDAxMDAwMDAwMAJAYDAZowovsAAAAASUVORK5CYII="
+        var MMS_imgNormal = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAsTAAALEwEAmpwYAAAFwmlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgNS42LWMxNDIgNzkuMTYwOTI0LCAyMDE3LzA3LzEzLTAxOjA2OjM5ICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOnhtcE1NPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdEV2dD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL3NUeXBlL1Jlc291cmNlRXZlbnQjIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtbG5zOnBob3Rvc2hvcD0iaHR0cDovL25zLmFkb2JlLmNvbS9waG90b3Nob3AvMS4wLyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIiB4bXA6Q3JlYXRlRGF0ZT0iMjAyMi0xMS0xMVQyMDo0OTo0MSswODowMCIgeG1wOk1ldGFkYXRhRGF0ZT0iMjAyMi0xMS0xMVQyMDo0OTo0MSswODowMCIgeG1wOk1vZGlmeURhdGU9IjIwMjItMTEtMTFUMjA6NDk6NDErMDg6MDAiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6NzZlYTVhNTAtOWNlNS1kZDQwLTk4YmUtYjgyYTYzM2U3MDFkIiB4bXBNTTpEb2N1bWVudElEPSJhZG9iZTpkb2NpZDpwaG90b3Nob3A6MGM0MjBiZjktZTE4Mi02MDRiLTgwOTktOGY1ODY4ZjUyZGJlIiB4bXBNTTpPcmlnaW5hbERvY3VtZW50SUQ9InhtcC5kaWQ6NDI5ZTYxZjQtZmZjZC1iZDRjLWE2ZDEtNWU2NzM0MGVhMDA1IiBkYzpmb3JtYXQ9ImltYWdlL3BuZyIgcGhvdG9zaG9wOkNvbG9yTW9kZT0iMyI+IDx4bXBNTTpIaXN0b3J5PiA8cmRmOlNlcT4gPHJkZjpsaSBzdEV2dDphY3Rpb249ImNyZWF0ZWQiIHN0RXZ0Omluc3RhbmNlSUQ9InhtcC5paWQ6NDI5ZTYxZjQtZmZjZC1iZDRjLWE2ZDEtNWU2NzM0MGVhMDA1IiBzdEV2dDp3aGVuPSIyMDIyLTExLTExVDIwOjQ5OjQxKzA4OjAwIiBzdEV2dDpzb2Z0d2FyZUFnZW50PSJBZG9iZSBQaG90b3Nob3AgQ0MgKFdpbmRvd3MpIi8+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJzYXZlZCIgc3RFdnQ6aW5zdGFuY2VJRD0ieG1wLmlpZDo3NmVhNWE1MC05Y2U1LWRkNDAtOThiZS1iODJhNjMzZTcwMWQiIHN0RXZ0OndoZW49IjIwMjItMTEtMTFUMjA6NDk6NDErMDg6MDAiIHN0RXZ0OnNvZnR3YXJlQWdlbnQ9IkFkb2JlIFBob3Rvc2hvcCBDQyAoV2luZG93cykiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+wzt3tAAAABZJREFUCJljbGz4z8DAwMTAwMDAwAAAF6wCBING4Z8AAAAASUVORK5CYII='
+        var MMS_textureWhite = new THREE.TextureLoader()['load'](MMS_imgWhite)
+        var MMS_textureNormal = new THREE.TextureLoader().load(MMS_imgNormal)
+
+        class GroundMirror extends ReflectorRTT {
+            constructor(mirrorConfig, models, scene) {
+                super(new THREE.PlaneGeometry(Math.abs(mirrorConfig.x[0] - mirrorConfig.x[1]), Math.abs(mirrorConfig.z[0] - mirrorConfig.z[1])), {
+                    'clipBias': mirrorConfig.clipBias,
+                    'textureWidth': window.innerWidth * window.devicePixelRatio,
+                    'textureHeight': window.innerHeight * window.devicePixelRatio,
+                    'color': mirrorConfig.color
+                })
+
+                this.mirrorConfig = mirrorConfig // Store config
+
+                this.geometry.setDrawRange(0, 0)
+
+                this.scene = scene
+
+                this.textureWhite = textureWhite || MMS_textureWhite
+                this.textureWhiteNode = new Nodes.TextureNode(this.textureWhite)
+
+                this.textureNormal = textureNormal || MMS_textureNormal
+                this.textureNormalNode = new Nodes.TextureNode(this.textureNormal)
+
+                // var zero = new Nodes.FloatNode(0)
+
+                const reflectorNode = new Nodes.ReflectorNode(this)
+                const normalMapSwitchNode = new Nodes.SwitchNode(this.textureNormalNode, 'xy')
+                const invertedNormalMapNode = new Nodes.MathNode(normalMapSwitchNode, Nodes.MathNode.INVERT)
+                const offsetCalculationNode = new Nodes.OperatorNode(invertedNormalMapNode, new Nodes.FloatNode(0.5), Nodes.OperatorNode.SUB)
+
+                this.offsetMultiplierNode = new Nodes.FloatNode(mirrorConfig.offset)
+                reflectorNode.offset = new Nodes.OperatorNode(offsetCalculationNode, this.offsetMultiplierNode, Nodes.OperatorNode.MUL)
+
+                this.blurNode = new Nodes.BlurNode(reflectorNode)
+                this.blurNode.size = new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio)
+                this.blurNode.uv = new Nodes.ExpressionNode("projCoord.xyz / projCoord.q", 'vec3')
+                this.blurNode.uv.keywords.projCoord = new Nodes.OperatorNode(reflectorNode.offset, reflectorNode.uv, Nodes.OperatorNode.ADD)
+                // this.blurNode.uv.keywords.projCoord = reflectorNode.uv
+                this.blurNode.radius.x = this.blurNode.radius.y = mirrorConfig.blur
+
+                this.phongNodeMaterial = new Nodes.PhongNodeMaterial()
+                this.phongNodeMaterial.environment = this.blurNode
+                // this.phongNodeMaterial.environment = reflectorNode
+                // this.phongNodeMaterial.environment = new Nodes.ColorNode(invertedNormalMapNode);
+
+                const environmentAlphaNode = new Nodes.SwitchNode(this.textureWhiteNode, 'w')
+                this.phongNodeMaterial.environmentAlpha = environmentAlphaNode
+
+                this.phongNodeMaterial.normal = new Nodes.NormalMapNode(this.textureNormalNode)
+
+                const mirrorMesh = new THREE.Mesh(
+                    new THREE.PlaneGeometry(Math.abs(mirrorConfig.x[0] - mirrorConfig.x[1]) * 1.001, Math.abs(mirrorConfig.z[0] - mirrorConfig.z[1]) * 1.001),
+                    this.phongNodeMaterial
+                )
+                this.add(mirrorMesh)
+
+                this.position.set(
+                    mirrorConfig.x[0] - (mirrorConfig.x[0] - mirrorConfig.x[1]) / 2,
+                    mirrorConfig.y,
+                    mirrorConfig.z[0] - (mirrorConfig.z[0] - mirrorConfig.z[1]) / 2
+                )
+                this.rotation.x = -Math.PI / 2
+
+                this.clock = new THREE.Clock()
+                this.nodeFrame = new Nodes.NodeFrame()
+
+                this.affectedMeshes = []
+                if (mirrorConfig.mesh && models) {
+                    for (let i = 0; i < models.length; i++) {
+                        models[i].traverse((object) => {
+                            if (object.isMesh) {
+                                for (let j = 0; j < mirrorConfig.mesh.length; j++) {
+                                    if (object.name == mirrorConfig.mesh[j]) {
+                                        object.material.transparent = true
+                                        object.material.depthWrite = false
+                                        object.material.opacity = mirrorConfig.opacity
+                                        object.renderOrder = 0
+                                        this.affectedMeshes.push(object)
+                                    }
+                                }
+                            }
+                        })
+                    }
+                }
+            }
+
+
+            setTextures (textureWhite, textureNormal) {
+                if (textureWhite) {
+                    this.textureWhite = textureWhite
+                    this.textureWhiteNode.value = this.textureWhite
+                }
+                if (textureNormal) {
+                    this.textureNormal = textureNormal
+                    this.textureNormal.wrapS = this.textureNormal.wrapT = THREE.RepeatWrapping
+                    this.textureNormalNode.value = this.textureNormal
+                }
+                this.phongNodeMaterial.needsUpdate = true
+            }
+
+            setVisible (showMirror) {
+                this.visible = showMirror
+                if (showMirror) {
+                    this.scene.add(this)
+                } else {
+                    this.scene.remove(this)
+                }
+
+                for (let i = 0; i < this.affectedMeshes.length; i++) {
+                    if (showMirror) {
+                        this.affectedMeshes[i].material.transparent = true
+                        this.affectedMeshes[i].material.depthWrite = false
+                        this.affectedMeshes[i].material.opacity = this.mirrorConfig.opacity
+                    } else {
+                        this.affectedMeshes[i].material.transparent = false
+                        this.affectedMeshes[i].material.depthWrite = true
+                        this.affectedMeshes[i].material.opacity = 1
+                    }
+                }
+            }
+
+            setOpacity (opacity) {
+                this.mirrorConfig.opacity = opacity
+                for (let i = 0; i < this.affectedMeshes.length; i++) {
+                    this.affectedMeshes[i].material.opacity = opacity
+                }
+            }
+
+            setBlur (blurRadius) {
+                this.blurNode.radius.x = this.blurNode.radius.y = blurRadius
+            }
+
+            setOffset (offset) {
+                this.offsetMultiplierNode.value = offset
+            }
+
+            update () {
+                const deltaTime = this.clock.getDelta()
+                this.nodeFrame.update(deltaTime).updateNode(this.phongNodeMaterial)
+            }
+        }
+
+        // 初始化场景、相机和渲染器
+        const scene = new THREE.Scene()
+        // scene.background = new THREE.Color(0xf0f0f0)
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+        const renderer = new THREE.WebGLRenderer()
+        renderer.setSize(window.innerWidth, window.innerHeight)
+        document.body.appendChild(renderer.domElement)
+
+        const controls = new OrbitControls(camera, renderer.domElement)
+
+        // 添加光源
+        const light = new THREE.DirectionalLight(0xffffff, 1)
+        light.position.set(0, 10, 0)
+        scene.add(light)
+
+        // 添加多个物体来反射
+        const objects = []
+        const geometryTorus = new THREE.TorusKnotGeometry(1, 0.4, 64, 8, 2, 3)
+        const materialRed = new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        const torusKnot = new THREE.Mesh(geometryTorus, materialRed)
+        torusKnot.position.set(Math.random() * 10 - 5, 2, Math.random() * 10 - 5)
+        scene.add(torusKnot)
+        objects.push(torusKnot)
+
+        const geometryBox = new THREE.BoxGeometry(2, 2, 2)
+        const materialGreen = new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        const cube = new THREE.Mesh(geometryBox, materialGreen)
+        cube.position.set(Math.random() * 10 - 5, 2, Math.random() * 10 - 5)
+        scene.add(cube)
+        objects.push(cube)
+
+        const geometryCylinder = new THREE.CylinderGeometry(1, 1, 2, 32)
+        const materialBlue = new THREE.MeshBasicMaterial({ color: 0x0000ff })
+        const cylinder = new THREE.Mesh(geometryCylinder, materialBlue)
+        cylinder.position.set(Math.random() * 10 - 5, 2, Math.random() * 10 - 5)
+        scene.add(cylinder)
+        objects.push(cylinder)
+
+        const geometryDodecahedron = new THREE.DodecahedronGeometry(1.5)
+        const materialYellow = new THREE.MeshBasicMaterial({ color: 0xffff00 })
+        const dodecahedron = new THREE.Mesh(geometryDodecahedron, materialYellow)
+        dodecahedron.position.set(Math.random() * 10 - 5, 2, Math.random() * 10 - 5)
+        scene.add(dodecahedron)
+        objects.push(dodecahedron)
+
+        const models = objects
+
+        // 添加参考平面
+        const planeGeometry = new THREE.PlaneGeometry(300, 300)
+        const planeMaterial = new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 })
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial)
+        plane.rotation.x = -Math.PI / 2
+        plane.position.y = 0.01 // 稍微低于镜子以避免Z-fighting
+        scene.add(plane)
+
+        // 创建地面镜子
+        let groundMirror
+        const mirrorParams = {
+            x_range: 60,
+            z_range: 60,
+            y: 0,
+            blur: 4,
+            offset: 0,
+            color: 0x0008ff,
+            clipBias: 0.003,
+            opacity: 0.5, // Default opacity
+            recreate: function () {
+                if (groundMirror) {
+                    scene.remove(groundMirror)
+                    groundMirror.geometry.dispose()
+                    groundMirror.phongNodeMaterial.dispose()
+                }
+                const config = {
+                    x: [-this.x_range / 2, this.x_range / 2],
+                    z: [-this.z_range / 2, this.z_range / 2],
+                    y: this.y,
+                    blur: this.blur,
+                    offset: this.offset,
+                    color: this.color,
+                    clipBias: this.clipBias,
+                    opacity: this.opacity,
+                    mesh: [] // Assuming no specific meshes to make transparent for this example
+                }
+                groundMirror = new GroundMirror(config, models, scene)
+                scene.add(groundMirror)
+            }
+        }
+
+        mirrorParams.recreate = mirrorParams.recreate.bind(mirrorParams)
+        mirrorParams.recreate()
+
+        // 添加GUI
+        const gui = new GUI()
+        const mirrorFolder = gui.addFolder('Ground Mirror')
+        mirrorFolder.add(mirrorParams, 'x_range', 1, 100, 1).name('Size X').onChange(mirrorParams.recreate)
+        mirrorFolder.add(mirrorParams, 'z_range', 1, 100, 1).name('Size Z').onChange(mirrorParams.recreate)
+        mirrorFolder.add(mirrorParams, 'y', -10, 10, 0.1).name('Position Y').onChange(mirrorParams.recreate)
+        mirrorFolder.add(mirrorParams, 'blur', 0, 20, 0.1).name('Blur').onChange(value => groundMirror.setBlur(value))
+        mirrorFolder.add(mirrorParams, 'offset', -100, 100, 0.1).name('Offset').onChange(value => groundMirror.setOffset(value))
+        mirrorFolder.addColor(mirrorParams, 'color').name('Color').onChange(mirrorParams.recreate)
+        mirrorFolder.add(mirrorParams, 'clipBias', 0, 2, 0.1).name('Clip Bias').onChange(mirrorParams.recreate)
+        mirrorFolder.add(mirrorParams, 'opacity', 0, 1, 0.01).name('Opacity').onChange(value => groundMirror.setOpacity(value))
+        mirrorFolder.open()
+
+        document.getElementById('whiteTextureInput').addEventListener('change', function (event) {
+            const file = event.target.files[0]
+            if (file) {
+                const reader = new FileReader()
+                reader.onload = function (e) {
+                    const texture = new THREE.TextureLoader().load(e.target.result)
+                    groundMirror.setTextures(texture, null)
+                }
+                reader.readAsDataURL(file)
+            }
+        })
+
+        document.getElementById('normalTextureInput').addEventListener('change', function (event) {
+            const file = event.target.files[0]
+            if (file) {
+                const reader = new FileReader()
+                reader.onload = function (e) {
+                    const texture = new THREE.TextureLoader().load(e.target.result)
+                    groundMirror.setTextures(null, texture)
+                }
+                reader.readAsDataURL(file)
+            }
+        })
+
+        camera.position.z = 5
+        camera.position.y = 3
+        camera.lookAt(0, 0, 0)
+
+        // 动画循环
+        function animate () {
+            requestAnimationFrame(animate)
+            objects.forEach(obj => {
+                obj.rotation.y += 0.01
+            })
+            controls.update()
+            groundMirror.update() // 更新镜面
+            renderer.render(scene, camera)
+        }
+        animate()
+
+        // 处理窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight
+            camera.updateProjectionMatrix()
+            renderer.setSize(window.innerWidth, window.innerHeight)
+        });
+    </script>
+</body>
+
+</html>
